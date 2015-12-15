@@ -94,6 +94,7 @@ xpindsB, ypindsB = grid['basemap'](lonB, latB)
 # mean resolution of shelf model in bay region
 xres = (xverts[xindsB[1], yindsB[0]] - xverts[xindsB[0], yindsB[0]])/(xindsB[1] - xindsB[0])
 yres = (yverts[xindsB[1], yindsB[1]] - yverts[xindsB[1], yindsB[0]])/(yindsB[1] - yindsB[0])
+res = 300  # meters
 # Set up grid space arrays for x and y, starting from shelf model but adding more entries for higher resolution
 xvec = np.concatenate((np.arange(0, xindsB[0], 1), \
                         np.arange(xindsB[0], xindsB[1], 1/(xres/res)), \

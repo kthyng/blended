@@ -16,6 +16,11 @@ from sunpy import Grid # suntans code
 import cmocean
 import octant
 from matplotlib import delaunay
+from matplotlib.mlab import find
+import matplotlib.tri as mtri
+from pyproj import Proj
+from scipy import ndimage
+from mesh import edit_mask_mesh
 
 
 mpl.rcParams.update({'font.size': 14})
@@ -30,9 +35,18 @@ mpl.rcParams['mathtext.sf'] = 'sans'
 mpl.rcParams['mathtext.fallback_to_cm'] = 'True'
 
 
+basemap = Proj(proj='utm', zone=15)
+
 # Read in shelf model grid
-loc = 'http://barataria.tamu.edu:8080/thredds/dodsC/NcML/txla_nesting6.nc'
-grid = tracpy.inout.readgrid(loc, usebasemap=True)
+grid_file = '../../grid.nc'
+# d = netCDF.Dataset(grid_file)
+# using version of tracpy in branch update-grid !!!
+grid = tracpy.inout.readgrid(grid_file, basemap)
+# Now using normal ROMS convention instead of flipped arrays
+# grid = octant.grid.CGrid_geo(lon_vert, lat_vert, basemap)
+
+# loc = 'http://barataria.tamu.edu:8080/thredds/dodsC/NcML/txla_nesting6.nc'
+# grid = tracpy.inout.readgrid(loc, usebasemap=True)
 
 # # Read in bay model grid
 # p = pyproj.Proj(proj='utm', zone='15')
@@ -55,9 +69,9 @@ grid = tracpy.inout.readgrid(loc, usebasemap=True)
 # grd = Grid(bayloc)
 
 # # Plot the grids together - but need to zoom to see stuff
-fig = plt.figure()
-ax = fig.add_subplot(111)
-tracpy.plotting.background(grid)
+# fig = plt.figure()
+# ax = fig.add_subplot(111)
+# tracpy.plotting.background(grid)
 # # Shelf grid
 # dx = 1; dy = 1;
 # ax.plot(grid['xr'][::dx], grid['yr'][::dy], \
@@ -67,57 +81,95 @@ tracpy.plotting.background(grid)
 # Grid.calc_dg(grd)
 
 lonB = [-95.29133464, -94.37435276]  # bounding lons for Bay grid, aligned with curvilinear shelf grid
-latB = [28.82617513, 29.71269076]  # bounding lats for Bay grid, aligned with curvilinear shelf grid
+latB = [28.9, 29.71269076]  # bounding lats for Bay grid, aligned with curvilinear shelf grid
+# latB = [28.82617513, 29.71269076]  # bounding lats for Bay grid, aligned with curvilinear shelf grid
 
-# Calculate grid vertices from shelf rho grid so we have them for later
-d = netCDF.Dataset(loc)
-angle = d.variables['angle'][:]
-# Most things are in tracpy ordering, [x, y] not [y, x]
-xverts, yverts = octant.grid.rho_to_vert(grid['xr'], grid['yr'], grid['pm'], grid['pn'], angle.T)
-# # cobble together verts mask, this is probably not right but may not matter much. CHECK THIS.
-# mask_verts = np.empty((grid['mask'].shape[0]+1, grid['mask'].shape[1]+1))
-# mask_verts[:-1, :-1] = grid['mask']
-# mask_verts[-1, :-1] = grid['mask'][-1, :]
-# mask_verts[:-1, -1] = grid['mask'][:, -1]
-# mask_verts[-1, -1] = grid['mask'][-1, -1]
+# # Calculate grid vertices from shelf rho grid so we have them for later
+# d = netCDF.Dataset(loc)
 
-# # apply mask to verts
-# xverts = np.ma.MaskedArray(xverts, mask_verts)
-# yverts = np.ma.MaskedArray(yverts, mask_verts)
+# angle = d.variables['angle'][:]
+# # Most things are in tracpy ordering, [x, y] not [y, x]
+# xverts, yverts = octant.grid.rho_to_vert(grid['xr'], grid['yr'], grid['pm'], grid['pn'], angle.T)
+
+# Use psi grid points as vertices for this blended product
+xverts = grid.x_vert
+yverts = grid.y_vert
 
 ## Interpolate vertices grid to be higher resolution in certain ranges ##
 # indices on shelf grid that bound the Bay grid
 xindsB, yindsB, _ = tracpy.tools.interpolate2d(lonB, latB, grid, 'd_ll2ij')
-yindsB[1] = 190  # setting this manually because of unknown problem
-# projected locations 
-xpindsB, ypindsB = grid['basemap'](lonB, latB)
+yindsB[0] = 147  # to be an integer
+yindsB[1] = 189  # setting this manually because of unknown problem
+# xindsB = [246.16400693039532 294.4152779769438] and I want it to be integers instead
+xindsB[0] = 248
+xindsB[1] = 291
+# # projected locations 
+# xpindsB, ypindsB = grid['basemap'](lonB, latB)
 # mean resolution of shelf model in bay region
-xres = (xverts[xindsB[1], yindsB[0]] - xverts[xindsB[0], yindsB[0]])/(xindsB[1] - xindsB[0])
-yres = (yverts[xindsB[1], yindsB[1]] - yverts[xindsB[1], yindsB[0]])/(yindsB[1] - yindsB[0])
+xres = (xverts[yindsB[0], xindsB[1]] - xverts[yindsB[0], xindsB[0]])/(xindsB[1] - xindsB[0])
+yres = (yverts[yindsB[1], xindsB[1]] - yverts[yindsB[0], xindsB[1]])/(yindsB[1] - yindsB[0])
 res = 300  # meters
 # Set up grid space arrays for x and y, starting from shelf model but adding more entries for higher resolution
 xvec = np.concatenate((np.arange(0, xindsB[0], 1), \
-                        np.arange(xindsB[0], xindsB[1], 1/(xres/res)), \
-                        np.arange(xindsB[1], xverts.shape[0], 1)))
+                        np.arange(xindsB[0], xindsB[1], 1./np.round((xres/res))), \
+                        np.arange(xindsB[1], xverts.shape[1], 1)))
 yvec = np.concatenate((np.arange(0, yindsB[0], 1), \
-                        np.arange(yindsB[0], yverts.shape[1], 1/(yres/res))))
+                        np.arange(yindsB[0], yverts.shape[0]-1, 1/np.round((yres/res)))))
+
 # xgrid, ygrid are in [x, y] order
-xgrid = xvec[:, np.newaxis].repeat(yvec.size, axis=1)
-ygrid = yvec[np.newaxis, :].repeat(xvec.size, axis=0)
-# xverts_blend, yverts_blend are the grid lines for the vertices grid for the blended model output
-xverts_blend, yverts_blend, _ = tracpy.tools.interpolate2d(xgrid, ygrid, grid, 'm_ij2xy')
+xgrid = xvec[np.newaxis, :].repeat(yvec.size, axis=0)
+ygrid = yvec[:, np.newaxis].repeat(xvec.size, axis=1)
+xverts_blend = ndimage.map_coordinates(grid.x_vert.T, np.array([xgrid.flatten(),
+                                                      ygrid.flatten()]),
+                             order=1, cval=0).reshape(xgrid.shape)
+yverts_blend = ndimage.map_coordinates(grid.y_vert.T, np.array([xgrid.flatten(),
+                                                      ygrid.flatten()]),
+                             order=1, cval=0).reshape(xgrid.shape)
 
 ## Calculate lat/lon
-lonverts_blend, latverts_blend = grid['basemap'](xverts_blend, yverts_blend, inverse=True)
+lonverts_blend, latverts_blend = grid.proj(xverts_blend, yverts_blend, inverse=True)
 
 # Calculate blended grid object
-# Changing back to normal ROMS dimensions, [y,x]
-grid_blend = octant.grid.CGrid_geo(lonverts_blend.T, latverts_blend.T, grid['basemap'])
+grid_blend = octant.grid.CGrid_geo(lonverts_blend, latverts_blend, grid.proj)
+
+# # get rho grid in grid space from original vert grid, which we will then use
+# # to interpolate the mask for the rho grid
+# xgridrho = 0.25*(xgrid[1:, 1:] + xgrid[1:, :-1] +
+#                    xgrid[:-1, 1:] + xgrid[:-1, :-1])
+# ygridrho = 0.25*(ygrid[1:, 1:] + ygrid[1:, :-1] +
+#                    ygrid[:-1, 1:] + ygrid[:-1, :-1])
+# maskverts_blend = ndimage.map_coordinates(grid.mask_rho.T, np.array([xgridrho.flatten(),
+#                                                       ygridrho.flatten()]),
+#                              order=0, cval=0).reshape(xgridrho.shape)
+
+# grid_blend._set_mask_rho(maskverts_blend)  # updates all of the masks
+
+# fix mask to be correct with high res suntans input
+# mask_bay_only = np.load('calcs/bayblendmask.npz')['mask']
+# edit_mask_mesh(grid_blend.lon_vert, grid_blend.lat_vert, maskverts_blend)
+# pcolormesh(grid_blend.lon_vert, grid_blend.lat_vert, mask_bay_only, edgecolors='k', alpha=0.5)
+# np.savez('calcs/mask_blend.npz', mask=maskverts_blend)
+maskblend = np.load('calcs/mask_blend.npz')['mask']
+grid_blend._set_mask_rho(maskblend)
+
+# Calculate blended mask
+# set up a new triangulation on the verts instead of rho to be consistent
+    # pts = np.column_stack((xr.flatten(), yr.flatten()))
+    # tess = Delaunay(pts)
+    # tri = mtri.Triangulation(xr.flatten(), yr.flatten(),
+    #                          tess.simplices.copy())
+
+# fmask = mtri.LinearTriInterpolator(grid.trir, grid.mask.flatten())
+# mask_rho_blend = fmask(grid_blend.x_rho, grid_blend.y_rho)
+# grid_blend._set_mask_rho(mask_rho_blend)  # updates all of the masks
 
 
+### Deal with bathymetry later since it should be a combination of both grids. For now, just send in 1s.
+### We might only need it for plotting since we are assuming surface-only drifter modeling.
 ## Interpolate bathymetry to new grid
-fh = grid['trir'].nn_interpolator(grid['h'].flatten())
-h_blend = fh(grid_blend.x_rho, grid_blend.y_rho)
+# fh = grid['trir'].nn_interpolator(grid['h'].flatten(), mode='nearest')
+# h_blend = fh(grid_blend.x_rho, grid_blend.y_rho)
+h_blend = np.ones(grid_blend.x_rho.shape)
 
 
 ## Save new grid ##
@@ -138,30 +190,42 @@ tcline = 0.
 # Define dimensions
 rootgrp.createDimension('xpsi', xl-1)
 rootgrp.createDimension('xr', xl)
+rootgrp.createDimension('xvert', xl+1)
 rootgrp.createDimension('ypsi', yl-1)
 rootgrp.createDimension('yr', yl)
+rootgrp.createDimension('yvert', yl+1)
 rootgrp.createDimension('zl', N)
 rootgrp.createDimension('zlp1', N+1)
 # Create variables
-xpsis = rootgrp.createVariable('xpsi','f8',('xpsi','ypsi'))
-xus = rootgrp.createVariable('xu','f8',('xpsi','yr'))
-xvs = rootgrp.createVariable('xv','f8',('xr','ypsi'))
-xrs = rootgrp.createVariable('xr','f8',('xr','yr'))
-ypsis = rootgrp.createVariable('ypsi','f8',('xpsi','ypsi'))
-yus = rootgrp.createVariable('yu','f8',('xpsi','yr'))
-yvs = rootgrp.createVariable('yv','f8',('xr','ypsi'))
-yrs = rootgrp.createVariable('yr','f8',('xr','yr'))
-lonpsis = rootgrp.createVariable('lon_psi','f8',('xpsi','ypsi'))
-lonus = rootgrp.createVariable('lon_u','f8',('xpsi','yr'))
-lonvs = rootgrp.createVariable('lon_v','f8',('xr','ypsi'))
-lonrs = rootgrp.createVariable('lon_rho','f8',('xr','yr'))
-latpsis = rootgrp.createVariable('lat_psi','f8',('xpsi','ypsi'))
-latus = rootgrp.createVariable('lat_u','f8',('xpsi','yr'))
-latvs = rootgrp.createVariable('lat_v','f8',('xr','ypsi'))
-latrs = rootgrp.createVariable('lat_rho','f8',('xr','yr'))
-pms = rootgrp.createVariable('pm','f8',('xr','yr'))
-pns = rootgrp.createVariable('pn','f8',('xr','yr'))
-hs = rootgrp.createVariable('h','f8',('xr','yr'))
+xverts = rootgrp.createVariable('x_vert','f8',('yvert','xvert'))
+xpsis = rootgrp.createVariable('x_psi','f8',('ypsi','xpsi'))
+xus = rootgrp.createVariable('x_u','f8',('yr','xpsi'))
+xvs = rootgrp.createVariable('x_v','f8',('ypsi','xr'))
+xrs = rootgrp.createVariable('x_rho','f8',('yr','xr'))
+yverts = rootgrp.createVariable('y_vert','f8',('yvert','xvert'))
+ypsis = rootgrp.createVariable('y_psi','f8',('ypsi','xpsi'))
+yus = rootgrp.createVariable('y_u','f8',('yr','xpsi'))
+yvs = rootgrp.createVariable('y_v','f8',('ypsi','xr'))
+yrs = rootgrp.createVariable('y_rho','f8',('yr','xr'))
+lonverts = rootgrp.createVariable('lon_vert','f8',('yvert','xvert'))
+lonpsis = rootgrp.createVariable('lon_psi','f8',('ypsi','xpsi'))
+lonus = rootgrp.createVariable('lon_u','f8',('yr','xpsi'))
+lonvs = rootgrp.createVariable('lon_v','f8',('ypsi','xr'))
+lonrs = rootgrp.createVariable('lon_rho','f8',('yr','xr'))
+latverts = rootgrp.createVariable('lat_vert','f8',('yvert','xvert'))
+latpsis = rootgrp.createVariable('lat_psi','f8',('ypsi','xpsi'))
+latus = rootgrp.createVariable('lat_u','f8',('yr','xpsi'))
+latvs = rootgrp.createVariable('lat_v','f8',('ypsi','xr'))
+latrs = rootgrp.createVariable('lat_rho','f8',('yr','xr'))
+mask_rhos = rootgrp.createVariable('mask_rho','f8',('yr','xr'))
+mask_us = rootgrp.createVariable('mask_u','f8',('yr','xpsi'))
+mask_vs = rootgrp.createVariable('mask_v','f8',('ypsi','xr'))
+mask_psis = rootgrp.createVariable('mask_psi','f8',('ypsi','xpsi'))
+pms = rootgrp.createVariable('pm','f8',('yr','xr'))
+pns = rootgrp.createVariable('pn','f8',('yr','xr'))
+angles = rootgrp.createVariable('angle','f8',('yvert','xvert'))
+angle_rhos = rootgrp.createVariable('angle_rho','f8',('yr','xr'))
+hs = rootgrp.createVariable('h','f8',('yr','xr'))
 s_rhos = rootgrp.createVariable('s_rho','f8',('zl'))
 s_ws = rootgrp.createVariable('s_w','f8',('zlp1'))
 hcs = rootgrp.createVariable('hc','f8')
@@ -175,24 +239,34 @@ Vtransforms = rootgrp.createVariable('Vtransform','f8')
 Vstretchings = rootgrp.createVariable('Vstretching','f8')
 
 # Write data to netCDF variables
+xverts[:] = grid_blend.x_vert
 xpsis[:] = grid_blend.x_psi
 xus[:] = grid_blend.x_u
 xvs[:] = grid_blend.x_v
 xrs[:] = grid_blend.x_rho
+yverts[:] = grid_blend.y_vert
 ypsis[:] = grid_blend.y_psi
 yus[:] = grid_blend.y_u
 yvs[:] = grid_blend.y_v
 yrs[:] = grid_blend.y_rho
+lonverts[:] = grid_blend.lon_vert
 lonpsis[:] = grid_blend.lon_psi
 lonus[:] = grid_blend.lon_u
 lonvs[:] = grid_blend.lon_v
 lonrs[:] = grid_blend.lon_rho
+latverts[:] = grid_blend.lat_vert
 latpsis[:] = grid_blend.lat_psi
 latus[:] = grid_blend.lat_u
 latvs[:] = grid_blend.lat_v
 latrs[:] = grid_blend.lat_rho
+mask_rhos[:] = grid_blend.mask_rho
+mask_us[:] = grid_blend.mask_u
+mask_vs[:] = grid_blend.mask_v
+mask_psis[:] = grid_blend.mask_psi
 pms[:] = grid_blend.pm
 pns[:] = grid_blend.pn
+angles[:] = grid_blend.angle
+angle_rhos[:] = grid_blend.angle_rho
 hs[:] = h_blend
 s_rhos[:] = s_rho
 s_ws[:] = s_w

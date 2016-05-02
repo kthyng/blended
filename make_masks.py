@@ -115,19 +115,31 @@ elif which == 'bayshelf':
 
     # distance along the coast for the suntans output. Have center of
     # weighting start at the middle of this along the coast.
-    # dist = 112825  # meters
-    # use grid.x_rho[204,392], grid.y_rho[204,392] at the center point
-    xmid = grid.x_rho[204,392]
-    ymid = grid.y_rho[204,392]
+    # for galveston channel
+    xmid = grid.x_rho[227, 451]
+    ymid = grid.y_rho[227, 451]
     r = np.sqrt((grid.x_rho-xmid)**2 + (grid.y_rho-ymid)**2)
-    # this makes the zero circle that is within the suntans domain
-    wsun = (47000 - r)/47000
+    wsun = (10000 - r)/5000
     ind = wsun < 0
     wsun[ind] = 0.
-    # wsun = (r.max() - r)/r.max()
+    ind = wsun > 1.
+    wsun[ind] = 1.
+    # for small channel
+    xmid = grid.x_rho[187, 312]
+    ymid = grid.y_rho[187, 312]
+    r = np.sqrt((grid.x_rho-xmid)**2 + (grid.y_rho-ymid)**2)
+    wsun1 = (2000 - r)/1000
+    ind = wsun1 < 0
+    wsun1[ind] = 0.
+    ind = wsun1 > 1.
+    wsun1[ind] = 1.
+    # combine:
+    wsun += wsun1
     wroms = 1-wsun
-    np.savez('calcs/mask_bayshelf_weights_radial.npz', mask=maskbayshelf,
+    np.savez('calcs/mask_bayshelf_weights_radial.npz',
              wsun=wsun, wroms=wroms, lon=grid.lon_rho, lat=grid.lat_rho)
+    # np.savez('calcs/mask_bayshelf_weights_radial.npz', mask=maskbayshelf,
+    #          wsun=wsun, wroms=wroms, lon=grid.lon_rho, lat=grid.lat_rho)
 
 
 elif which == 'restofshelf':

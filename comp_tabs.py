@@ -323,8 +323,8 @@ def ss(data, model):
     # fig.savefig('figures/weights_vvar.png', bbox_inches='tight')
 
 # Run code
-dstart = '2010-06-11'  # '2009-06-26', '2010-06-11', '2011-05-27'
-dend = '2010-08-20'  # '2009-11-13', '2010-08-20', '2011-08-02'
+dstart = '2011-05-27'  # '2009-06-26', '2010-06-11', '2011-05-27'
+dend = '2011-08-02'  # '2009-11-13', '2010-08-20', '2011-08-02'
 
 fname = 'calcs/df/bay_' + dstart + '_' + dend + '.pkl'
 if os.path.exists(fname):

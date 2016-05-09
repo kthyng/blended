@@ -39,7 +39,7 @@ def data_locs():
     # ROMS shelf grid indices (had to find these by hand)
     ishelfs = np.zeros((3, 2), dtype=int)
     ishelfs[0, :] = 276, 162
-    ishelfs[1, :] = 268, 148
+    ishelfs[1, :] = 270, 149
     ishelfs[2, :] = 263, 140
 
     return ll, xy, ibays, ishelfs

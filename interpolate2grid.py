@@ -153,10 +153,6 @@ wroms = np.load('calcs/mask_bayshelf_weights_radial.npz')['wroms']
 wromsu = wroms[:, 1:]  # don't want to interpolate this
 wromsv = wroms[1:, :]
 
-# # line for weighting across the bay shelf: y = m*x+b
-# m = -1.229711996684854
-# b = 3621774.9274811796
-
 etablend = np.empty_like(gridblend.x_rho)
 
 # Read in SUNTANS output
@@ -257,6 +253,8 @@ for File in Files:
         mappable = axes[1, 1].pcolormesh(gridblend.x_rho, gridblend.y_rho, etabayblend.filled(), cmap=cmocean.cm.eta, vmin=-0.1, vmax=0.1)
         cs = axes[1, 1].contour(gridblend.x_rho, gridblend.y_rho, wsun, [0.0, 0.25, 0.5, 0.75, 1.0], colors='r')
         plt.clabel(cs, fmt='%1.2f')
+        cs = axes[1, 1].contour(gridblend.x_rho, gridblend.y_rho, wsun1, [0.0, 0.25, 0.5, 0.75, 1.0], colors='r')
+        plt.clabel(cs, fmt='%1.2f')
         axes[1, 1].contour(gridblend.x_rho, gridblend.y_rho, maskbayshelf.astype(int), [0], colors='b')
         axes[1, 1].axis([270000, 370000, 3150000, 3320000])
         axes[1, 1].set_title('etabayblend')
@@ -270,6 +268,8 @@ for File in Files:
 
         mappable = axes[1, 2].pcolormesh(gridblend.x_rho, gridblend.y_rho, etashelfblend.filled(), cmap=cmocean.cm.eta, vmin=-0.1, vmax=0.1)
         cs = axes[1, 2].contour(gridblend.x_rho, gridblend.y_rho, wroms, [0, 0.25, 0.5, 0.75, 0.99], colors='r')
+        plt.clabel(cs, fmt='%1.2f')
+        cs = axes[1, 2].contour(gridblend.x_rho, gridblend.y_rho, wroms1, [0, 0.25, 0.5, 0.75, 0.99], colors='r')
         plt.clabel(cs, fmt='%1.2f')
         axes[1, 2].contour(gridblend.x_rho, gridblend.y_rho, maskbayshelf.astype(int), [0], colors='b')
         axes[1, 2].axis([270000, 370000, 3150000, 3320000])

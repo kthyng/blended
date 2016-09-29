@@ -4,6 +4,7 @@ Initialization for running other scripts
 
 import numpy as np
 from pyproj import Proj
+import netCDF4 as netCDF
 
 
 def returnbasemap():
@@ -13,6 +14,10 @@ def returnbasemap():
 
 def data_locs():
     """Save data locations and model indices."""
+
+    # ROMS grid only
+    locshelfgrid = 'http://barataria.tamu.edu:8080/thredds/dodsC/txla_nesting6_grid/txla_grd_v4_new.nc'
+    grid = netCDF.Dataset(locshelfgrid)
 
     basemap = returnbasemap()
 
@@ -42,4 +47,4 @@ def data_locs():
     ishelfs[1, :] = 270, 149
     ishelfs[2, :] = 263, 140
 
-    return ll, xy, ibays, ishelfs
+    return ll, xy, ibays, ishelfs, basemap, grid

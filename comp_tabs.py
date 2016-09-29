@@ -9,19 +9,19 @@ import pandas as pd
 
 # w = 0.0  # weight of SUNTANS output
 
-locb = 'http://barataria.tamu.edu:8080/thredds/dodsC/mrayson_galveston/2007/GalvCoarse_20070102.nc'
+locb = 'http://barataria.tamu.edu:8080/thredds/dodsC/2011/GalvCoarse_2011_AVG_0363.nc'
+
+# dates limitations here come from wind data, but also now have them from SUNTANS
+dstart = '2011-05-27'  # '2009-06-26', '2010-06-11', '2011-05-27'
+dend = '2011-08-02'  # '2009-11-13', '2010-08-20', '2011-08-02'
 
 # SUNTANS bay
 grd = Grid(locb)
 
-basemap = init.returnbasemap()
 # data locations (indices)
-ll, xy, ibays, ishelfs = init.data_locs()
+ll, xy, ibays, ishelfs, basemap, shelfgrid = init.data_locs()
 
-# ROMS shelf
-loc = 'http://barataria.tamu.edu:8080/thredds/dodsC/NcML/txla_nesting6.nc'
-d = netCDF.Dataset(loc)
-x_rho, y_rho = basemap(d['lon_rho'][:], d['lat_rho'][:])
+x_rho, y_rho = basemap(shelfgrid['lon_rho'][:], shelfgrid['lat_rho'][:])
 
 # plotting colors for the different data locations
 colors = ['k', 'purple', 'g']
@@ -323,8 +323,6 @@ def ss(data, model):
     # fig.savefig('figures/weights_vvar.png', bbox_inches='tight')
 
 # Run code
-dstart = '2011-05-27'  # '2009-06-26', '2010-06-11', '2011-05-27'
-dend = '2011-08-02'  # '2009-11-13', '2010-08-20', '2011-08-02'
 
 fname = 'calcs/df/bay_' + dstart + '_' + dend + '.pkl'
 if os.path.exists(fname):

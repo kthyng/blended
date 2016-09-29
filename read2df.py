@@ -10,6 +10,7 @@ import pandas as pd
 import netCDF4 as netCDF
 import xarray as xr
 import init
+from datetime import datetime
 
 
 ## Parameters ##
@@ -24,10 +25,9 @@ iz = 3
 # ROMS
 il = -1  # which layer to use
 loc = 'http://barataria.tamu.edu:8080/thredds/dodsC/NcML/txla_nesting6.nc'
-ds = xr.open_dataset(loc)  # need this for all rotations
 
 # data locations (indices)
-ll, xy, ibays, ishelfs = init.data_locs()
+ll, xy, ibays, ishelfs, basemap, shelfgrid = init.data_locs()
 
 
 def rot2d(x, y, ang):
@@ -42,10 +42,10 @@ def getbayfiles():
     code from interpolate2grid.py
     """
 
-    years = np.arange(2007, 2012)
+    years = [2011]  # np.arange(2007, 2012)
     Files = []  # urls for files on thredds server
     for yeart in years:
-        url = 'http://barataria.tamu.edu:8080/thredds/catalog/mrayson_galveston/' + str(yeart) + '/catalog.html'
+        url = 'http://barataria.tamu.edu:8080/thredds/catalog/' + str(yeart) + '/catalog.html'
         soup = BeautifulSoup(requests.get(url).text)
 
         # Pull out file name from webpage
@@ -54,7 +54,7 @@ def getbayfiles():
             if not '.nc' in row.text:
                 continue
             Filename = row.text.encode()  # File name from thredds catalog
-            Files.append('http://barataria.tamu.edu:8080/thredds/dodsC/mrayson_galveston/' + str(yeart) + '/' + Filename)
+            Files.append('http://barataria.tamu.edu:8080/thredds/dodsC/' + str(yeart) + '/' + Filename)
     return(sorted(Files))
 
 
@@ -68,13 +68,13 @@ def add2df(df, u, v, ind, i, inds=None):
         # Cartesian
         df['u' + str(i)], df['v' + str(i)] = u[:, ind], v[:, ind]
         # along/across rotation
-        df['al' + str(i)], df['ac' + str(i)] = rot2d(df['u' + str(i)], df['v' + str(i)], -ds['angle'][inds[1], inds[0]].data)
+        df['al' + str(i)], df['ac' + str(i)] = rot2d(df['u' + str(i)], df['v' + str(i)], -shelfgrid['angle'][inds[1], inds[0]])
 
     elif inds is None:  # shelf
         df['al' + str(i)] = u.isel(xi_u=ind[0], eta_u=ind[1])  # along-coast
         df['ac' + str(i)] = v.isel(xi_v=ind[0], eta_v=ind[1])  # across-coast
         # Cartesian rotation
-        df['u' + str(i)], df['v' + str(i)] = rot2d(df['al' + str(i)], df['ac' + str(i)], ds['angle'][ind[1], ind[0]].data)  # rotating to be cartesian
+        df['u' + str(i)], df['v' + str(i)] = rot2d(df['al' + str(i)], df['ac' + str(i)], shelfgrid['angle'][ind[1], ind[0]])  # rotating to be cartesian
 
     return df
 
@@ -84,9 +84,27 @@ def readbay(dstart, dend):
 
     Files = getbayfiles()
 
+    dstartsplit = dstart.split('-')
+    dstartdt = datetime(int(dstartsplit[0]), int(dstartsplit[1]), int(dstartsplit[2]))
+    dendsplit = dend.split('-')
+    denddt = datetime(int(dendsplit[0]), int(dendsplit[1]), int(dendsplit[2]))
+
     # Bay model output
-    istart = np.where([dstart.replace('-', '') in File for File in Files])[0]
-    iend = np.where([dend.replace('-', '') in File for File in Files])[0]
+    # import pdb; pdb.set_trace()
+    for i, File in enumerate(Files):
+        # print File
+        dtemp = netCDF.Dataset(File)
+        t = dtemp['time']
+        dates = netCDF.num2date(t[:], t.units)
+        ind = np.where([dstartdt] == dates)[0]
+        if ind.size:  # if an exact match was found
+            istart = i
+        ind = np.where([denddt] == dates)[0]
+        if ind.size:  # if an exact match was found
+            iend = i
+            continue
+        dtemp.close()
+    # import pdb; pdb.set_trace()
     # inds = np.where([dstart.replace('-', '') in File for File in Files])[0]
     # inds = np.concatenate((inds, [inds[-1]+1]))
     dbay = netCDF.MFDataset(np.asarray(Files)[istart:iend+1])
@@ -117,6 +135,8 @@ def readbay(dstart, dend):
 
 def readshelf(dstart, dend):
     """Read in shelf model output."""
+
+    ds = xr.open_dataset(loc)  # need this for all rotations
 
     # rename model output
     # ts = year + '-' + month  # starting time
@@ -154,7 +174,7 @@ def readnoaa(dstart, dend):
     # get as components and convert to m/s
     df['u0'] = (df['Speed']/100.)*np.cos((np.deg2rad(90-df['Dir'])))
     df['v0'] = (df['Speed']/100.)*np.sin((np.deg2rad(90-df['Dir'])))
-    df['al0'], df['ac0'] = rot2d(df['u0'], df['v0'], -ds['angle'][ishelfs[2, 1], ishelfs[2, 0]].data)  # rotating to be curvilinear
+    df['al0'], df['ac0'] = rot2d(df['u0'], df['v0'], -shelfgrid['angle'][ishelfs[2, 1], ishelfs[2, 0]])  # rotating to be curvilinear
 
     # resample
     df = df.resample(per).interpolate()
@@ -199,7 +219,7 @@ def readother(dstart, dend):
     # get as components and convert to m/s
     df['u1'] = (df['Speed']/100.)*np.cos((np.deg2rad(90-df['Dir'])))
     df['v1'] = (df['Speed']/100.)*np.sin((np.deg2rad(90-df['Dir'])))
-    df['al1'], df['ac1'] = rot2d(df['u1'], df['v1'], -ds['angle'][ishelfs[2, 1], ishelfs[2, 0]].data)  # rotating to be curvilinear
+    df['al1'], df['ac1'] = rot2d(df['u1'], df['v1'], -shelfgrid['angle'][ishelfs[2, 1], ishelfs[2, 0]])  # rotating to be curvilinear
 
     # resample
     df = df.resample(per).interpolate()
@@ -222,7 +242,7 @@ def readtabs(dstart, dend):
     # convert to m/s
     df['u2'] /= 100.
     df['v2'] /= 100.
-    df['al2'], df['ac2'] = rot2d(df['u2'], df['v2'], -ds['angle'][ishelfs[2, 1], ishelfs[2, 0]].data)  # rotating to be curvilinear
+    df['al2'], df['ac2'] = rot2d(df['u2'], df['v2'], -shelfgrid['angle'][ishelfs[2, 1], ishelfs[2, 0]])  # rotating to be curvilinear
 
     # resample
     df = df.resample(per).interpolate()

@@ -4,13 +4,14 @@ pandas dataframes.
 """
 
 import numpy as np
-from BeautifulSoup import BeautifulSoup
+from bs4 import BeautifulSoup
 import requests
 import pandas as pd
 import netCDF4 as netCDF
 import xarray as xr
 import init
 from datetime import datetime
+from glob import glob
 
 
 ## Parameters ##
@@ -24,7 +25,8 @@ iz = 3
 
 # ROMS
 il = -1  # which layer to use
-loc = 'http://barataria.tamu.edu:8080/thredds/dodsC/NcML/txla_nesting6.nc'
+# loc = 'http://barataria.tamu.edu:8080/thredds/dodsC/NcML/txla_nesting6.nc'
+loc = 'http://barataria.tamu.edu:8080/thredds/dodsC/NcML/txla_hindcast_agg'
 
 # data locations (indices)
 ll, xy, ibays, ishelfs, basemap, shelfgrid = init.data_locs()
@@ -42,7 +44,7 @@ def getbayfiles():
     code from interpolate2grid.py
     """
 
-    years = [2011]  # np.arange(2007, 2012)
+    years = [2009]  # np.arange(2007, 2012)
     Files = []  # urls for files on thredds server
     for yeart in years:
         url = 'http://barataria.tamu.edu:8080/thredds/catalog/' + str(yeart) + '/catalog.html'
@@ -54,6 +56,8 @@ def getbayfiles():
             if not '.nc' in row.text:
                 continue
             Filename = row.text.encode()  # File name from thredds catalog
+            if 'Harmonics' in Filename:
+                continue  # not regular model output
             Files.append('http://barataria.tamu.edu:8080/thredds/dodsC/' + str(yeart) + '/' + Filename)
     return(sorted(Files))
 
@@ -82,7 +86,12 @@ def add2df(df, u, v, ind, i, inds=None):
 def readbay(dstart, dend):
     """Read in bay model output."""
 
-    Files = getbayfiles()
+    # Files = getbayfiles()  # this is when they are the thredds server
+    # base = '/Volumes/rho.tamu.edu/'  # on tahoma
+    base = '/rho/raid/'  # on hafen
+    Files = glob(base + 'dongyu/2009/*.nc')
+    Files.extend(glob(base + 'dongyu/2010/*.nc'))
+    Files.extend(glob(base + 'dongyu/2011/*.nc'))
 
     dstartsplit = dstart.split('-')
     dstartdt = datetime(int(dstartsplit[0]), int(dstartsplit[1]), int(dstartsplit[2]))
@@ -91,24 +100,39 @@ def readbay(dstart, dend):
 
     # Bay model output
     # import pdb; pdb.set_trace()
+    Filesuse = []
     for i, File in enumerate(Files):
         # print File
-        dtemp = netCDF.Dataset(File)
-        t = dtemp['time']
-        dates = netCDF.num2date(t[:], t.units)
-        ind = np.where([dstartdt] == dates)[0]
-        if ind.size:  # if an exact match was found
-            istart = i
-        ind = np.where([denddt] == dates)[0]
-        if ind.size:  # if an exact match was found
-            iend = i
+        ds = xr.open_dataset(File)
+        # see if first time is in desired time range
+        if (ds['time'].to_dataframe().index.to_datetime()[0] >= dstartdt
+           and ds['time'].to_dataframe().index.to_datetime()[0] < denddt) or \
+           (ds['time'].to_dataframe().index.to_datetime()[-1] >= dstartdt
+           and ds['time'].to_dataframe().index.to_datetime()[-1] < denddt):
+            Filesuse.append(File)
             continue
-        dtemp.close()
+        # # also see if last time is in desired time range
+        # if ds['time'].to_dataframe().index.to_datetime()[-1] < denddt:
+        #     Filesuse.append(File)
+        #     continue
+
+
+        # t = dtemp['time']
+        # dates = netCDF.num2date(t[:], t.units)
+        # ind = np.where([dstartdt] == dates)[0]
+        # if ind.size:  # if an exact match was found
+        #     istart = i
+        # ind = np.where([denddt] == dates)[0]
+        # if ind.size:  # if an exact match was found
+        #     iend = i
+        #     continue
+        ds.close()
     # import pdb; pdb.set_trace()
     # inds = np.where([dstart.replace('-', '') in File for File in Files])[0]
     # inds = np.concatenate((inds, [inds[-1]+1]))
-    dbay = netCDF.MFDataset(np.asarray(Files)[istart:iend+1])
+    # dbay = netCDF.MFDataset(np.asarray(Files)[istart:iend+1])
     # dbay = xr.open_mfdataset(Files[:30])  # January 2007, too slow
+    dbay = netCDF.MFDataset(np.asarray(Filesuse))
 
     # rename model output
     u, v, t = dbay['uc'][:, iz, :], dbay['vc'][:, iz, :], dbay['time']
@@ -177,7 +201,7 @@ def readnoaa(dstart, dend):
     df['al0'], df['ac0'] = rot2d(df['u0'], df['v0'], -shelfgrid['angle'][ishelfs[2, 1], ishelfs[2, 0]])  # rotating to be curvilinear
 
     # resample
-    df = df.resample(per).interpolate()
+    df = df.resample(per)#.interpolate()
 
     # limit date range to day after start until day before end
     # to get only full days

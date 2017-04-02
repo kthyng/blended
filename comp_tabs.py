@@ -9,33 +9,36 @@ import pandas as pd
 
 # w = 0.0  # weight of SUNTANS output
 
-locb = 'http://barataria.tamu.edu:8080/thredds/dodsC/2011/GalvCoarse_2011_AVG_0363.nc'
+locb = 'http://barataria.tamu.edu:8080/thredds/dodsC/2009/GalvCoarse_2009_AVG_0179.nc'
 
-# dates limitations here come from wind data, but also now have them from SUNTANS
-dstart = '2011-05-27'  # '2009-06-26', '2010-06-11', '2011-05-27'
-dend = '2011-08-02'  # '2009-11-13', '2010-08-20', '2011-08-02'
-
-# SUNTANS bay
-grd = Grid(locb)
-
-# data locations (indices)
-ll, xy, ibays, ishelfs, basemap, shelfgrid = init.data_locs()
-
-x_rho, y_rho = basemap(shelfgrid['lon_rho'][:], shelfgrid['lat_rho'][:])
-
+#
+# # dates limitations here come from wind data, but also now have them from SUNTANS
+# dstart = '2011-05-27'  # '2009-06-26', '2010-06-11', '2011-05-27'
+# dend = '2011-08-02'  # '2009-11-13', '2010-08-20', '2011-08-02'
+#
+#
 # plotting colors for the different data locations
-colors = ['k', 'purple', 'g']
+# colors = ['k', 'purple', 'g']
+colors = ['#76CA19', '#1976CA', '#CA1976']  # green, blue, pink
 locnames = ['channel', 'med', 'far']
 lws = {'data': 3, 'shelf': 2, 'bay': 1}
-
-# variable to plot
-var = 'al'
+#
+# # variable to plot
+# var = 'al'
 
 
 def plot_map():
     """Plot SUNTANS domain and data comp locations."""
 
-    fig = plt.figure()
+    # SUNTANS bay
+    grd = Grid(locb)
+
+    # data locations (indices)
+    ll, xy, ibays, ishelfs, basemap, shelfgrid = init.data_locs()
+
+    x_rho, y_rho = basemap(shelfgrid['lon_rho'][:], shelfgrid['lat_rho'][:])
+
+    fig = plt.figure(figsize=(6, 8))
     ax = fig.add_subplot(111)
 
     # plot SUNTANS model
@@ -49,167 +52,91 @@ def plot_map():
         ax.plot(grd.xv[ibays[i]], grd.yv[ibays[i]], 's', color=colors[i], zorder=5)  # plot close SUNTANS point
         ax.plot(x_rho[ishelfs[i, 1], ishelfs[i, 0]], y_rho[ishelfs[i, 1], ishelfs[i, 0]], '^', color=colors[i], zorder=5)  # plot close shelf point
 
+    ax.set_title('Data locations', fontsize=14)
+
     fig.savefig('figures/comparisons/tabs/map.png', bbox_inches='tight')
 
 
-def plot_spectra(df):
-    """Input dictionary of dataframes to plot."""
+def plot_spectra(dfs, var):
+    """Input list of dataframes to plot.
+
+    var is the keyword name of the column variable to plot.
+    """
+
+    fig, ax = plt.subplots(2, 1, figsize=(10, 8))
+
 
     # loop over the types of data (bay, shelf, data)
-    for key in df.keys():
+    for df in dfs:
 
-        fig, ax = plt.subplots(2, 1, figsize=(12, 8))
+        key = df.keys()[[var in key for key in df.keys()]][0]
+        i = np.where([str(num) in key for num in np.array([0,1,2])])[0][0]  # 0, 1, or 2
 
-        # loop over the data locations
-        for i in xrange(len(colors)):
+        # plot time series
+        df[key].plot(ax=ax[0], color=colors[i], lw=2, alpha=0.7)
 
-            # plot time series
-            df[key][var + str(i)].plot(ax=ax[0], color=colors[i], lw=2, alpha=0.7)
+        # calculate spectrum
+        y = df[key]
+        n = len(y)  # length of the signal
+        if np.isnan(y).sum() > 0:
+            igaps = np.where(np.isnan(y))[0][0]
+            igape = np.where(np.isnan(y))[0][-1]
+            y1 = y[:igaps]
+            n1 = len(y1)
+            y2 = y[igape+1:]
+            n2 = len(y2)
+            Y = [(np.fft.fft(y1)/n1)[range(n1/2)]]
+            Y.append((np.fft.fft(y2)/n2)[range(n2/2)])
+            k = [np.arange(n1)]
+            k.append(np.arange(n2))
+            Ts = 30*60  # sampling interval (sec)
+            Fs = 1./Ts
+            T = [n1/Fs]
+            T.append(n2/Fs)
+            frq = [(k[0]/T[0])[range(n1/2)]]  # two sides frequency range
+            frq.append((k[0]/T[0])[range(n2/2)])
+        else:
+            Y = np.fft.fft(y)/n  # fft computing and normalization
+            Y = Y[range(n/2)]
+            k = np.arange(n)
+            Ts = 30*60  # sampling interval (sec)
+            Fs = 1./Ts
+            T = n/Fs
+            frq = k/T  # two sides frequency range
+            frq = frq[range(n/2)]  # one side frequency range
 
-            # calculate spectrum
-            y = df[key][var + str(i)]
-            n = len(y)  # length of the signal
-            if np.isnan(y).sum() > 0:
-                igaps = np.where(np.isnan(y))[0][0]
-                igape = np.where(np.isnan(y))[0][-1]
-                y1 = y[:igaps]
-                n1 = len(y1)
-                y2 = y[igape+1:]
-                n2 = len(y2)
-                Y = [(np.fft.fft(y1)/n1)[range(n1/2)]]
-                Y.append((np.fft.fft(y2)/n2)[range(n2/2)])
-                k = [np.arange(n1)]
-                k.append(np.arange(n2))
-                Ts = 30*60  # sampling interval (sec)
-                Fs = 1./Ts
-                T = [n1/Fs]
-                T.append(n2/Fs)
-                frq = [(k[0]/T[0])[range(n1/2)]]  # two sides frequency range
-                frq.append((k[0]/T[0])[range(n2/2)])
-            else:
-                Y = np.fft.fft(y)/n  # fft computing and normalization
-                Y = Y[range(n/2)]
-                k = np.arange(n)
-                Ts = 30*60  # sampling interval (sec)
-                Fs = 1./Ts
-                T = n/Fs
-                frq = k/T  # two sides frequency range
-                frq = frq[range(n/2)]  # one side frequency range
+        # plotting the spectrum
+        if isinstance(Y, list):
+            for frqs, Ys in zip(frq, Y):
+                ax[1].loglog(frqs, abs(Ys), color=colors[i], lw=2, alpha=0.7)
+        else:
+            ax[1].loglog(frq, abs(Y), color=colors[i], lw=2, alpha=0.7)
 
-            # plotting the spectrum
-            if isinstance(Y, list):
-                for frqs, Ys in zip(frq, Y):
-                    ax[1].loglog(frqs, abs(Ys), color=colors[i], lw=2, alpha=0.7)
-            else:
-                ax[1].loglog(frq, abs(Y), color=colors[i], lw=2, alpha=0.7)
+        # make plot nice
+        ax[0].set_title(key)
+        ax[0].set_xlabel('Time')
+        ax[0].set_ylabel('Amplitude')
+        ax[0].set_ylim(-1.3, 1.3)
+        ax[1].set_xlabel('Freq (Hz)')
+        ax[1].set_ylabel('|Y(freq)|')
+        ax[1].axis('tight')
+        ax[1].set_ylim(1e-5, 0.5)
+        ax[1].set_xlim(1e-7, 0.5e-4)
+        fig.tight_layout()
 
-            # make plot nice
-            ax[0].set_title(key)
-            ax[0].set_xlabel('Time')
-            ax[0].set_ylabel('Amplitude')
-            ax[0].set_ylim(-1.3, 1.3)
-            ax[1].set_xlabel('Freq (Hz)')
-            ax[1].set_ylabel('|Y(freq)|')
-            ax[1].axis('tight')
-            ax[1].set_ylim(1e-5, 0.5)
-            ax[1].set_xlim(1e-7, 0.5e-4)
-            fig.tight_layout()
+        # data = df['data'][var + str(i)]  # just renaming
+        # # labels and skill scores
+        # if np.isnan(data).sum() > 0:
+        #     igaps = np.where(np.isnan(data))[0][0]
+        #     igape = np.where(np.isnan(data))[0][-1]
+        #     model = df[key][var + str(i)]  # renaming
+        #     ax[0].text(0.05 + i*0.2, 0.03, locnames[i] + ', ss = %1.2f, %1.2f' % (ss(data.iloc[:igaps], model.iloc[:igaps]), ss(data.iloc[igape+1:], model[igape+1:])), transform=ax[0].transAxes, color=colors[i])
+        # else:
+        #     ax[0].text(0.05 + i*0.2, 0.03, locnames[i] + ', ss = %1.2f' % ss(data, df[key][var + str(i)]), transform=ax[0].transAxes, color=colors[i])
 
-            data = df['data'][var + str(i)]  # just renaming
-            # labels and skill scores
-            if np.isnan(data).sum() > 0:
-                igaps = np.where(np.isnan(data))[0][0]
-                igape = np.where(np.isnan(data))[0][-1]
-                model = df[key][var + str(i)]  # renaming
-                ax[0].text(0.05 + i*0.2, 0.03, locnames[i] + ', ss = %1.2f, %1.2f' % (ss(data.iloc[:igaps], model.iloc[:igaps]), ss(data.iloc[igape+1:], model[igape+1:])), transform=ax[0].transAxes, color=colors[i])
-            else:
-                ax[0].text(0.05 + i*0.2, 0.03, locnames[i] + ', ss = %1.2f' % ss(data, df[key][var + str(i)]), transform=ax[0].transAxes, color=colors[i])
-
-        fig.savefig('figures/comparisons/tabs/spectrum_' + var + key + dstart + '_' + dend + '.pdf', bbox_inches='tight')
-        # plt.close(fig)
-
-    # loop over data locations
-    for i in xrange(len(colors)):
-
-        fig, ax = plt.subplots(2, 1, figsize=(12, 8))
-
-        # loop over the types of data (bay, shelf, data)
-        for j, key in enumerate(df.keys()):
-
-            # if 'bay' in key:
-            #     ls = '-.'
-            # elif 'shelf' in key:
-            #     ls = '--'
-            # else:
-            #     ls = '-'
-
-            # plot time series
-            df[key][var + str(i)].plot(ax=ax[0], color=colors[i], alpha=0.6, lw=lws[key], label=key)
-
-            # calculate spectrum
-            y = df[key][var + str(i)]
-            n = len(y)  # length of the signal
-            if np.isnan(y).sum() > 0:
-                igaps = np.where(np.isnan(y))[0][0]
-                igape = np.where(np.isnan(y))[0][-1]
-                y1 = y[:igaps]
-                n1 = len(y1)
-                y2 = y[igape+1:]
-                n2 = len(y2)
-                Y = [(np.fft.fft(y1)/n1)[range(n1/2)]]
-                Y.append((np.fft.fft(y2)/n2)[range(n2/2)])
-                k = [np.arange(n1)]
-                k.append(np.arange(n2))
-                Ts = 30*60  # sampling interval (sec)
-                Fs = 1./Ts
-                T = [n1/Fs]
-                T.append(n2/Fs)
-                frq = [(k[0]/T[0])[range(n1/2)]]  # two sides frequency range
-                frq.append((k[0]/T[0])[range(n2/2)])
-            else:
-                Y = np.fft.fft(y)/n  # fft computing and normalization
-                Y = Y[range(n/2)]
-                k = np.arange(n)
-                Ts = 30*60  # sampling interval (sec)
-                Fs = 1./Ts
-                T = n/Fs
-                frq = k/T  # two sides frequency range
-                frq = frq[range(n/2)]  # one side frequency range
-
-            # plotting the spectrum
-            if isinstance(Y, list):
-                for frqs, Ys in zip(frq, Y):
-                    ax[1].loglog(frqs, abs(Ys), color=colors[i], alpha=0.6, lw=lws[key], label=key)
-            else:
-                ax[1].loglog(frq, abs(Y), color=colors[i], alpha=0.6, lw=lws[key], label=key)
-
-            # make plot nice
-            ax[0].set_title('Data location ' + locnames[i])
-            ax[0].set_xlabel('Time')
-            ax[0].set_ylabel('Amplitude')
-            ax[0].set_ylim(-1.3, 1.3)
-            ax[1].set_xlabel('Freq (Hz)')
-            ax[1].set_ylabel('|Y(freq)|')
-            ax[1].axis('tight')
-            ax[1].set_ylim(1e-5, 0.5)
-            ax[1].set_xlim(1e-7, 0.5e-4)
-            fig.tight_layout()
-
-            data = df['data'][var + str(i)]  # just renaming
-            # labels and skill scores
-            if np.isnan(data).sum() > 0:
-                igaps = np.where(np.isnan(data))[0][0]
-                igape = np.where(np.isnan(data))[0][-1]
-                model = df[key][var + str(i)]  # renaming
-                ax[0].text(0.05 + j*0.2, 0.03, key + ', ss = %1.2f, %1.2f' % (ss(data.iloc[:igaps], model.iloc[:igaps]), ss(data.iloc[igape+1:], model[igape+1:])), transform=ax[0].transAxes, color=colors[i])
-            else:
-                ax[0].text(0.05 + j*0.2, 0.03, key + ', ss = %1.2f' % ss(data, df[key][var + str(i)]), transform=ax[0].transAxes, color=colors[i])
-
-        plt.legend(loc='lower left')
-        fig.savefig('figures/comparisons/tabs/spectrum_' + var + 'loc' + str(i) + dstart + '_' + dend + '.pdf', bbox_inches='tight')
-        # plt.close(fig)
-
-
+    fig.savefig('figures/comparisons/tabs/spectrum.pdf', bbox_inches='tight')
+    # fig.savefig('figures/comparisons/tabs/spectrum_' + var + key + dstart + '_' + dend + '.pdf', bbox_inches='tight')
+    # plt.close(fig)
 
 
 def ss(data, model):
@@ -324,32 +251,32 @@ def ss(data, model):
 
 # Run code
 
-fname = 'calcs/df/bay_' + dstart + '_' + dend + '.pkl'
-if os.path.exists(fname):
-    dfbay = pd.read_pickle(fname)
-else:
-    dfbay = read2df.readbay(dstart, dend)
-    dfbay.to_pickle(fname)
-
-fname = 'calcs/df/shelf_' + dstart + '_' + dend + '.pkl'
-if os.path.exists(fname):
-    dfshelf = pd.read_pickle(fname)
-else:
-    dfshelf = read2df.readshelf(dstart, dend)
-    dfshelf.to_pickle(fname)
-
-fname = 'calcs/df/data_' + dstart + '_' + dend + '.pkl'
-if os.path.exists(fname):
-    dfdata = pd.read_pickle(fname)
-else:
-    dfdata = read2df.readdata(dstart, dend)
-    dfdata.to_pickle(fname)
-
-# Make a dictionary of dataframes
-df = {'bay': dfbay, 'shelf': dfshelf, 'data': dfdata}
-
-# make plots
-# plot_map()
-
-# plot data loc 0
-plot_spectra(df)
+# fname = 'calcs/df/bay_' + dstart + '_' + dend + '.pkl'
+# if os.path.exists(fname):
+#     dfbay = pd.read_pickle(fname)
+# else:
+#     dfbay = read2df.readbay(dstart, dend)
+#     dfbay.to_pickle(fname)
+#
+# fname = 'calcs/df/shelf_' + dstart + '_' + dend + '.pkl'
+# if os.path.exists(fname):
+#     dfshelf = pd.read_pickle(fname)
+# else:
+#     dfshelf = read2df.readshelf(dstart, dend)
+#     dfshelf.to_pickle(fname)
+#
+# fname = 'calcs/df/data_' + dstart + '_' + dend + '.pkl'
+# if os.path.exists(fname):
+#     dfdata = pd.read_pickle(fname)
+# else:
+#     dfdata = read2df.readdata(dstart, dend)
+#     dfdata.to_pickle(fname)
+#
+# # Make a dictionary of dataframes
+# df = {'bay': dfbay, 'shelf': dfshelf, 'data': dfdata}
+#
+# # make plots
+# # plot_map()
+#
+# # plot data loc 0
+# plot_spectra(df)

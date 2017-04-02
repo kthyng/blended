@@ -142,7 +142,7 @@ def readbay(dstart, dend):
     df = pd.DataFrame(index=dates)
 
     # add into dataframe the velocities at each comp location
-    for i, ibay in enumerate(ibays):
+    for i, ibay in enumerate(ibays.astype(int)):
         df = add2df(df, u, v, ibay, i, ishelfs[i, :])
 
     # resample all of dataframe

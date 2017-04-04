@@ -83,15 +83,16 @@ def add2df(df, u, v, ind, i, inds=None):
     return df
 
 
-def readbay(dstart, dend):
+def readbay(dstart, dend, Files=None):
     """Read in bay model output."""
 
-    # Files = getbayfiles()  # this is when they are the thredds server
-    # base = '/Volumes/rho.tamu.edu/'  # on tahoma
-    base = '/rho/raid/'  # on hafen
-    Files = glob(base + 'dongyu/2009/*.nc')
-    Files.extend(glob(base + 'dongyu/2010/*.nc'))
-    Files.extend(glob(base + 'dongyu/2011/*.nc'))
+    if Files is None:
+        # Files = getbayfiles()  # this is when they are the thredds server
+        # base = '/Volumes/rho.tamu.edu/'  # on tahoma
+        base = '/rho/raid/'  # on hafen
+        Files = glob(base + 'dongyu/2009/*.nc')
+        Files.extend(glob(base + 'dongyu/2010/*.nc'))
+        Files.extend(glob(base + 'dongyu/2011/*.nc'))
 
     dstartsplit = dstart.split('-')
     dstartdt = datetime(int(dstartsplit[0]), int(dstartsplit[1]), int(dstartsplit[2]))
@@ -99,7 +100,6 @@ def readbay(dstart, dend):
     denddt = datetime(int(dendsplit[0]), int(dendsplit[1]), int(dendsplit[2]))
 
     # Bay model output
-    # import pdb; pdb.set_trace()
     Filesuse = []
     for i, File in enumerate(Files):
         # print File
@@ -111,27 +111,8 @@ def readbay(dstart, dend):
            and ds['time'].to_dataframe().index.to_datetime()[-1] < denddt):
             Filesuse.append(File)
             continue
-        # # also see if last time is in desired time range
-        # if ds['time'].to_dataframe().index.to_datetime()[-1] < denddt:
-        #     Filesuse.append(File)
-        #     continue
-
-
-        # t = dtemp['time']
-        # dates = netCDF.num2date(t[:], t.units)
-        # ind = np.where([dstartdt] == dates)[0]
-        # if ind.size:  # if an exact match was found
-        #     istart = i
-        # ind = np.where([denddt] == dates)[0]
-        # if ind.size:  # if an exact match was found
-        #     iend = i
-        #     continue
         ds.close()
-    # import pdb; pdb.set_trace()
-    # inds = np.where([dstart.replace('-', '') in File for File in Files])[0]
-    # inds = np.concatenate((inds, [inds[-1]+1]))
-    # dbay = netCDF.MFDataset(np.asarray(Files)[istart:iend+1])
-    # dbay = xr.open_mfdataset(Files[:30])  # January 2007, too slow
+
     dbay = netCDF.MFDataset(np.asarray(Filesuse))
 
     # rename model output

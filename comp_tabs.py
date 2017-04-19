@@ -19,7 +19,10 @@ locb = 'http://barataria.tamu.edu:8080/thredds/dodsC/2009/GalvCoarse_2009_AVG_01
 #
 # plotting colors for the different data locations
 # colors = ['k', 'purple', 'g']
-colors = ['#76CA19', '#1976CA', '#CA1976']  # green, blue, pink
+colors = ['#76CA19', '#1976CA', '#CA1976']  # green, blue, pink; for data
+# gshades = ['#76CA19', '#4A7E10', '#1D3306']  # green shades: data, bay, shelf
+# bshades = ['#1976CA', '#104A7E', '#061D33']  # blue shades
+# pshades = ['#CA1976', '#7E104A', '#33061D']  # pink shades
 locnames = ['channel', 'med', 'far']
 lws = {'data': 3, 'shelf': 2, 'bay': 1}
 #
@@ -27,7 +30,7 @@ lws = {'data': 3, 'shelf': 2, 'bay': 1}
 # var = 'al'
 
 
-def plot_map():
+def plot_map(colors=colors):
     """Plot SUNTANS domain and data comp locations."""
 
     # SUNTANS bay
@@ -57,23 +60,30 @@ def plot_map():
     fig.savefig('figures/comparisons/tabs/map.png', bbox_inches='tight')
 
 
-def plot_spectra(dfs, var):
+def plot_spectra(dfs, var, colors=colors, lw=2, ls='-', legend=None, doss=False, dor2=False):
     """Input list of dataframes to plot.
 
     var is the keyword name of the column variable to plot.
     """
 
-    fig, ax = plt.subplots(2, 1, figsize=(10, 8))
+    lwsave = lw
 
+    fig, ax = plt.subplots(2, 1, figsize=(8, 8))
 
     # loop over the types of data (bay, shelf, data)
-    for df in dfs:
+    j = 0  # counter
+    for i, df in enumerate(dfs):
+
+        if isinstance(lwsave, list):
+            lw = lwsave[i]
+        else:
+            lw = lwsave
 
         key = df.keys()[[var in key for key in df.keys()]][0]
-        i = np.where([str(num) in key for num in np.array([0,1,2])])[0][0]  # 0, 1, or 2
+        # i = np.where([str(num) in key for num in np.array([0,1,2])])[0][0]  # 0, 1, or 2
 
         # plot time series
-        df[key].plot(ax=ax[0], color=colors[i], lw=2, alpha=0.7)
+        df[key].plot(ax=ax[0], color=colors[i], lw=lw, alpha=0.7, ls=ls)
 
         # calculate spectrum
         y = df[key]
@@ -108,32 +118,60 @@ def plot_spectra(dfs, var):
         # plotting the spectrum
         if isinstance(Y, list):
             for frqs, Ys in zip(frq, Y):
-                ax[1].loglog(frqs, abs(Ys), color=colors[i], lw=2, alpha=0.7)
+                ax[1].loglog(frqs, abs(Ys), color=colors[i], lw=lw, alpha=0.7, ls=ls)
         else:
-            ax[1].loglog(frq, abs(Y), color=colors[i], lw=2, alpha=0.7)
+            ax[1].loglog(frq, abs(Y), color=colors[i], lw=lw, alpha=0.7, ls=ls)
 
-        # make plot nice
-        ax[0].set_title(key)
-        ax[0].set_xlabel('Time')
-        ax[0].set_ylabel('Amplitude')
-        ax[0].set_ylim(-1.3, 1.3)
-        ax[1].set_xlabel('Freq (Hz)')
-        ax[1].set_ylabel('|Y(freq)|')
-        ax[1].axis('tight')
-        ax[1].set_ylim(1e-5, 0.5)
-        ax[1].set_xlim(1e-7, 0.5e-4)
-        fig.tight_layout()
+        # legend
+        if legend is not None:
+            plt.legend(legend, loc='best', frameon=False)
 
-        # data = df['data'][var + str(i)]  # just renaming
-        # # labels and skill scores
-        # if np.isnan(data).sum() > 0:
-        #     igaps = np.where(np.isnan(data))[0][0]
-        #     igape = np.where(np.isnan(data))[0][-1]
-        #     model = df[key][var + str(i)]  # renaming
-        #     ax[0].text(0.05 + i*0.2, 0.03, locnames[i] + ', ss = %1.2f, %1.2f' % (ss(data.iloc[:igaps], model.iloc[:igaps]), ss(data.iloc[igape+1:], model[igape+1:])), transform=ax[0].transAxes, color=colors[i])
-        # else:
-        #     ax[0].text(0.05 + i*0.2, 0.03, locnames[i] + ', ss = %1.2f' % ss(data, df[key][var + str(i)]), transform=ax[0].transAxes, color=colors[i])
+        # skill score
+        if doss:
+            if len(dfs) == 1:  # need more than one entry to compare
+                continue
+            if i == 0:  # assume first entry is the data to be compared with
+                continue
+            data = dfs[0][key]  # just renaming
+            model = df[key]  # renaming
+            # labels and skill scores
+            if np.isnan(data).sum() > 0:
+                igaps = np.where(np.isnan(data))[0][0]
+                igape = np.where(np.isnan(data))[0][-1]
+                ax[0].text(0.05 + j*0.2, 0.03, legend[i] + ', ss = %1.2f, %1.2f' % (ss(data.iloc[:igaps], model.iloc[:igaps]), ss(data.iloc[igape+1:], model[igape+1:])), transform=ax[0].transAxes, color=colors[i])
+            else:
+                ax[0].text(0.05 + j*0.2, 0.03, legend[i] + ', ss = %1.2f' % ss(data, model), transform=ax[0].transAxes, color=colors[i])
 
+        # r^2
+        if dor2:
+            # if len(dfs) == 1:  # need more than one entry to compare
+            #     continue
+            # if i == 0:  # assume first entry is the data to be compared with
+            #     continue
+            data = dfs[0][key]  # just renaming
+            model = df[key]  # renaming
+            # # labels and skill scores
+            # if np.isnan(data).sum() > 0:
+            #     igaps = np.where(np.isnan(data))[0][0]
+            #     igape = np.where(np.isnan(data))[0][-1]
+            #     ax[0].text(0.05 + i*0.2, 0.03, legend[i] + ', ss = %1.2f, %1.2f' % (ss(data.iloc[:igaps], model.iloc[:igaps]), ss(data.iloc[igape+1:], model[igape+1:])), transform=ax[0].transAxes, color=colors[i])
+            # else:
+            ax[0].text(0.5 + j*0.2, 0.03, legend[i] + ', r$^2$ = %1.2f' % r2(data, model), transform=ax[0].transAxes, color=colors[i])
+
+        if doss or do2:
+            j += 1
+
+    # make plot nice
+    ax[0].set_title(key)
+    ax[0].set_xlabel('Time')
+    ax[0].set_ylabel('Amplitude')
+    ax[0].set_ylim(-1.3, 1.3)
+    ax[1].set_xlabel('Freq (Hz)')
+    ax[1].set_ylabel('|Y(freq)|')
+    ax[1].axis('tight')
+    ax[1].set_ylim(1e-5, 0.5)
+    ax[1].set_xlim(1e-7, 0.5e-4)
+    fig.tight_layout()
     fig.savefig('figures/comparisons/tabs/spectrum.pdf', bbox_inches='tight')
     # fig.savefig('figures/comparisons/tabs/spectrum_' + var + key + dstart + '_' + dend + '.pdf', bbox_inches='tight')
     # plt.close(fig)
@@ -145,53 +183,59 @@ def ss(data, model):
     return 1 - np.sum((data - model)**2)/np.sum(data**2)
 
 
-    ax.text(0.16, 0.18, 'buoy vs. bay: %1.2f' % subay, transform=ax.transAxes)
-    ax.text(0.16, 0.12, 'buoy vs. shelf: %1.2f' % sushelf, transform=ax.transAxes)
-    ax.text(0.16, 0.06, 'buoy vs. bay+shelf: %1.2f' % sushelfbay, transform=ax.transAxes)
-    # ax.text(0.16, 0.18, 'buoy vs. bay: %1.2f' % dfB['u'].corr(dfbay['u']), transform=ax.transAxes)
-    # ax.text(0.16, 0.12, 'buoy vs. shelf: %1.2f' % dfB['u'].corr(dfshelf['u']), transform=ax.transAxes)
-    # ax.text(0.16, 0.06, 'buoy vs. bay+shelf: %1.2f' % dfB['u'].corr(dfshelfbayu), transform=ax.transAxes)
-    plt.savefig('figures/comparisons/tabs/u_w' + str(w) + 'month' + month + '.pdf', bbox_inches='tight')
+def r2(data, model):
+    """Calculate correlation coefficient."""
 
-    # Sum of SUNTANS and shelf
-    # Combined output
-    dfshelfbayv = w*dfbay['v'] + dfshelf['v']
-    # dfshelfbayv = 0.0*dfbay['v'].resample('60T').interpolate() + dfshelf['v'].resample('60T').interpolate()
-    # skill for u, bay
-    svbay = 1-np.sum((dfB['v']-dfbay['v'])**2)/np.sum(dfB['v']**2)
-    # skill for u, shelf
-    svshelf = 1-np.sum((dfB['v']-dfshelf['v'])**2)/np.sum(dfB['v']**2)
-    # skill for u, bay+shelf
-    svshelfbay = 1-np.sum((dfB['v']-dfshelfbayv)**2)/np.sum(dfB['v']**2)
+    return (np.corrcoef(data, model)**2)[0,1]
+
+
+    # ax.text(0.16, 0.18, 'buoy vs. bay: %1.2f' % subay, transform=ax.transAxes)
+    # ax.text(0.16, 0.12, 'buoy vs. shelf: %1.2f' % sushelf, transform=ax.transAxes)
+    # ax.text(0.16, 0.06, 'buoy vs. bay+shelf: %1.2f' % sushelfbay, transform=ax.transAxes)
+    # # ax.text(0.16, 0.18, 'buoy vs. bay: %1.2f' % dfB['u'].corr(dfbay['u']), transform=ax.transAxes)
+    # # ax.text(0.16, 0.12, 'buoy vs. shelf: %1.2f' % dfB['u'].corr(dfshelf['u']), transform=ax.transAxes)
+    # # ax.text(0.16, 0.06, 'buoy vs. bay+shelf: %1.2f' % dfB['u'].corr(dfshelfbayu), transform=ax.transAxes)
+    # plt.savefig('figures/comparisons/tabs/u_w' + str(w) + 'month' + month + '.pdf', bbox_inches='tight')
+    #
+    # # Sum of SUNTANS and shelf
+    # # Combined output
+    # dfshelfbayv = w*dfbay['v'] + dfshelf['v']
+    # # dfshelfbayv = 0.0*dfbay['v'].resample('60T').interpolate() + dfshelf['v'].resample('60T').interpolate()
     # # skill for u, bay
-    # svbay = 1-np.sum((dfB['v']-dfbay['v'])**2)/np.sum((dfB['v'] - dfbay['v']*0)**2)
+    # svbay = 1-np.sum((dfB['v']-dfbay['v'])**2)/np.sum(dfB['v']**2)
     # # skill for u, shelf
-    # svshelf = 1-np.sum((dfB['v']-dfshelf['v'])**2)/np.sum((dfB['v'] - dfshelf['v']*0)**2)
+    # svshelf = 1-np.sum((dfB['v']-dfshelf['v'])**2)/np.sum(dfB['v']**2)
     # # skill for u, bay+shelf
-    # svshelfbay = 1-np.sum((dfB['v']-dfshelfbayv)**2)/np.sum((dfB['v'] - dfshelfbayv*0)**2)
-    plt.figure(figsize=(14, 6))
-    ax = dfB['v'].plot(color='k', lw=4)
-    # SUNTANS output
-    ax.plot(dfbay.index, dfbay['v'], 'r', lw=2, alpha=0.7)
-    # Shelf output
-    ax.plot(dfshelf.index, dfshelf['v'], 'b', lw=2, alpha=0.7)
-    ax.plot(dfshelfbayv.index, dfshelfbayv, 'g.', lw=4)
-    plt.legend(['buoy', 'bay', 'shelf', 'bay+shelf'], loc='best', frameon=False)
-    plt.title('v [m/s]')
-    plt.tight_layout()
-    ax.text(0.16, 0.18, 'buoy vs. bay: %1.2f' % svbay, transform=ax.transAxes)
-    ax.text(0.16, 0.12, 'buoy vs. shelf: %1.2f' % svshelf, transform=ax.transAxes)
-    ax.text(0.16, 0.06, 'buoy vs. bay+shelf: %1.2f' % svshelfbay, transform=ax.transAxes)
-    # ax.text(0.16, 0.18, 'buoy vs. bay: %1.2f' % dfB['v'].corr(dfbay['v']), transform=ax.transAxes)
-    # ax.text(0.16, 0.12, 'buoy vs. shelf: %1.2f' % dfB['v'].corr(dfshelf['v']), transform=ax.transAxes)
-    # ax.text(0.16, 0.06, 'buoy vs. bay+shelf: %1.2f' % dfB['v'].corr(dfshelfbayv), transform=ax.transAxes)
-    plt.savefig('figures/comparisons/tabs/v_w' + str(w) + 'month' + month + '.pdf', bbox_inches='tight')
+    # svshelfbay = 1-np.sum((dfB['v']-dfshelfbayv)**2)/np.sum(dfB['v']**2)
+    # # # skill for u, bay
+    # # svbay = 1-np.sum((dfB['v']-dfbay['v'])**2)/np.sum((dfB['v'] - dfbay['v']*0)**2)
+    # # # skill for u, shelf
+    # # svshelf = 1-np.sum((dfB['v']-dfshelf['v'])**2)/np.sum((dfB['v'] - dfshelf['v']*0)**2)
+    # # # skill for u, bay+shelf
+    # # svshelfbay = 1-np.sum((dfB['v']-dfshelfbayv)**2)/np.sum((dfB['v'] - dfshelfbayv*0)**2)
+    # plt.figure(figsize=(14, 6))
+    # ax = dfB['v'].plot(color='k', lw=4)
+    # # SUNTANS output
+    # ax.plot(dfbay.index, dfbay['v'], 'r', lw=2, alpha=0.7)
+    # # Shelf output
+    # ax.plot(dfshelf.index, dfshelf['v'], 'b', lw=2, alpha=0.7)
+    # ax.plot(dfshelfbayv.index, dfshelfbayv, 'g.', lw=4)
+    # plt.legend(['buoy', 'bay', 'shelf', 'bay+shelf'], loc='best', frameon=False)
+    # plt.title('v [m/s]')
+    # plt.tight_layout()
+    # ax.text(0.16, 0.18, 'buoy vs. bay: %1.2f' % svbay, transform=ax.transAxes)
+    # ax.text(0.16, 0.12, 'buoy vs. shelf: %1.2f' % svshelf, transform=ax.transAxes)
+    # ax.text(0.16, 0.06, 'buoy vs. bay+shelf: %1.2f' % svshelfbay, transform=ax.transAxes)
+    # # ax.text(0.16, 0.18, 'buoy vs. bay: %1.2f' % dfB['v'].corr(dfbay['v']), transform=ax.transAxes)
+    # # ax.text(0.16, 0.12, 'buoy vs. shelf: %1.2f' % dfB['v'].corr(dfshelf['v']), transform=ax.transAxes)
+    # # ax.text(0.16, 0.06, 'buoy vs. bay+shelf: %1.2f' % dfB['v'].corr(dfshelfbayv), transform=ax.transAxes)
+    # plt.savefig('figures/comparisons/tabs/v_w' + str(w) + 'month' + month + '.pdf', bbox_inches='tight')
 
-    # testing
-    # # svshelf
-    # shelf1 = (dfB['v']-dfshelf['v'])
-    # shelf2 = (dfB['v']-dfshelfbayv)
-    1-np.sum((dfB['v']-dfB['v'])**2)/np.sum(dfB['v']**2)
+    # # testing
+    # # # svshelf
+    # # shelf1 = (dfB['v']-dfshelf['v'])
+    # # shelf2 = (dfB['v']-dfshelfbayv)
+    # 1-np.sum((dfB['v']-dfB['v'])**2)/np.sum(dfB['v']**2)
 
     # ## CURVILINEAR ##
     # # plot time series together

@@ -83,6 +83,44 @@ def add2df(df, u, v, ind, i, inds=None):
     return df
 
 
+def readblended(dstart, dend, Files):
+    """Read in blended model output from loc for data locations.
+
+    Files should be a globbed list of locations."""
+
+    ds = xr.open_dataset(Files)
+
+    inds = init.blended_datalocs()  # indices in blended grid for data locations
+
+    # rename model output
+    u = ds['u'].sel(ocean_time=slice(dstart, dend))
+    v = ds['v'].sel(ocean_time=slice(dstart, dend))
+    t = ds['ocean_time'].sel(ocean_time=slice(dstart, dend))
+
+    u = u.rename({'yr': 'xi_u', 'xpsi': 'eta_u'})
+    v = v.rename({'xr': 'xi_v', 'ypsi': 'eta_v'})
+
+    # Initialize DataFrame
+    df = pd.DataFrame(index=t)
+
+    # add into dataframe the velocities at each comp location
+    for i in range(inds.shape[0]):
+        df = add2df(df, u, v, inds[i, :], i)
+
+    # resample all of dataframe
+    df = df.resample(per).interpolate()
+
+    # limit date range to day after start until day before end
+    # to get only full days
+    # dstart = dstart[:8] + str(int(dstart[-2:]) + 1)
+    # dend = dend[:8] + str(int(dend[-2:]) - 1)
+    # df = df[dstart:dend]
+
+    return df
+
+
+
+
 def readbay(dstart, dend, Files=None):
     """Read in bay model output."""
 

@@ -7,9 +7,31 @@ from pyproj import Proj
 import netCDF4 as netCDF
 
 
+# data locations, lon/lat, numbered with increasing distance from channel
+ll = np.zeros((3, 2))
+ll[0, :] = -(94+44.4/60), 29+20.5/60  # NOAA g06010 at Galveston Entrance channel
+ll[1, :] = -(94+47.760/60), 29+8.5516/60  # Steve wind turbine data
+ll[2, :] = -(94+53.943/60), 28+58.938/60  # TABS buoy B
+
 def returnbasemap():
     basemap = Proj(proj='utm', zone=15)  # ellps='clrk66',datum='NAD27')
     return basemap
+
+
+def blended_datalocs():
+    """Returns indices of data locations on blended grid."""
+
+    # already ran:
+    # loc = 'http://copano.tamu.edu:8080/thredds/dodsC/NcML/txla_hindcast_agg'
+    # import tracpy
+    # proj = tracpy.tools.make_proj('nwgom-pyproj')
+    # grid = tracpy.inout.readgrid(loc, proj)
+    # ix, iy, _ = tracpy.tools.interpolate2d(ll[:,0], ll[:,1], grid, 'd_ll2ij')
+
+    ix = np.array([ 275.27354649,  269.46952166,  262.32717062])
+    iy = np.array([ 161.59940386,  148.80648438,  139.82597272])
+    inds = np.array([[ixx,iyy] for ixx, iyy in zip(ix.round(), iy.round())])
+    return inds.astype(int)
 
 
 def data_locs():
@@ -20,12 +42,6 @@ def data_locs():
     grid = netCDF.Dataset(locshelfgrid)
 
     basemap = returnbasemap()
-
-    # data locations, lon/lat, numbered with increasing distance from channel
-    ll = np.zeros((3, 2))
-    ll[0, :] = -(94+44.4/60), 29+20.5/60  # NOAA g06010 at Galveston Entrance channel
-    ll[1, :] = -(94+47.760/60), 29+8.5516/60  # Steve wind turbine data
-    ll[2, :] = -(94+53.943/60), 28+58.938/60  # TABS buoy B
 
     # data locations, projected coords
     xy = np.zeros((3, 2))

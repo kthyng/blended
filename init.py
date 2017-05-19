@@ -21,17 +21,20 @@ def returnbasemap():
 def blended_datalocs():
     """Returns indices of data locations on blended grid."""
 
-    # already ran:
+    # already ran: but WAS WRONG!
     # loc = 'http://copano.tamu.edu:8080/thredds/dodsC/NcML/txla_hindcast_agg'
     # import tracpy
     # proj = tracpy.tools.make_proj('nwgom-pyproj')
     # grid = tracpy.inout.readgrid(loc, proj)
     # ix, iy, _ = tracpy.tools.interpolate2d(ll[:,0], ll[:,1], grid, 'd_ll2ij')
 
-    ix = np.array([ 275.27354649,  269.46952166,  262.32717062])
-    iy = np.array([ 161.59940386,  148.80648438,  139.82597272])
-    inds = np.array([[ixx,iyy] for ixx, iyy in zip(ix.round(), iy.round())])
-    return inds.astype(int)
+    # i, j; across along
+    inds = np.zeros((3, 2))
+    inds[0, :] = [225, 446]  # NOAA g06010 at Galveston Entrance channel
+    inds[1, :] = [161, 405]  # wind
+    inds[2, :] = [140, 355]  # TABS buoy B
+
+    return inds
 
 
 def data_locs():

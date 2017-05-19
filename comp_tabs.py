@@ -158,7 +158,7 @@ def plot_spectra(dfs, var, colors=colors, lw=2, ls='-', legend=None, doss=False,
             # else:
             ax[0].text(0.5 + j*0.2, 0.03, legend[i] + ', r$^2$ = %1.2f' % r2(data, model), transform=ax[0].transAxes, color=colors[i])
 
-        if doss or do2:
+        if doss or dor2:
             j += 1
 
     # make plot nice

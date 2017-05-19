@@ -77,8 +77,8 @@ def add2df(df, u, v, ind, i, inds=None):
     elif inds is None:  # shelf
         df['al' + str(i)] = u.isel(xi_u=ind[0], eta_u=ind[1])  # along-coast
         df['ac' + str(i)] = v.isel(xi_v=ind[0], eta_v=ind[1])  # across-coast
-        # Cartesian rotation
-        df['u' + str(i)], df['v' + str(i)] = rot2d(df['al' + str(i)], df['ac' + str(i)], shelfgrid['angle'][ind[1], ind[0]])  # rotating to be cartesian
+        # # Cartesian rotation (commented bc don't have angle in blended grid)
+        # df['u' + str(i)], df['v' + str(i)] = rot2d(df['al' + str(i)], df['ac' + str(i)], shelfgrid['angle'][ind[1], ind[0]])  # rotating to be cartesian
 
     return df
 
@@ -97,7 +97,7 @@ def readblended(dstart, dend, Files):
     v = ds['v'].sel(ocean_time=slice(dstart, dend))
     t = ds['ocean_time'].sel(ocean_time=slice(dstart, dend))
 
-    u = u.rename({'yr': 'xi_u', 'xpsi': 'eta_u'})
+    u = u.rename({'yr': 'eta_u', 'xpsi': 'xi_u'})
     v = v.rename({'xr': 'xi_v', 'ypsi': 'eta_v'})
 
     # Initialize DataFrame

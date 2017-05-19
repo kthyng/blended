@@ -28,11 +28,11 @@ def blended_datalocs():
     # grid = tracpy.inout.readgrid(loc, proj)
     # ix, iy, _ = tracpy.tools.interpolate2d(ll[:,0], ll[:,1], grid, 'd_ll2ij')
 
-    # i, j; across along
+    # j, i;  along across
     inds = np.zeros((3, 2), dtype=int)
-    inds[0, :] = [225, 446]  # NOAA g06010 at Galveston Entrance channel
-    inds[1, :] = [161, 405]  # wind
-    inds[2, :] = [140, 355]  # TABS buoy B
+    inds[0, :] = [446, 225]  # NOAA g06010 at Galveston Entrance channel
+    inds[1, :] = [405, 161]  # wind
+    inds[2, :] = [355, 140]  # TABS buoy B
 
     return inds
 
@@ -45,6 +45,10 @@ def data_locs():
     grid = netCDF.Dataset(locshelfgrid)
 
     basemap = returnbasemap()
+
+    # blended grid
+    # locblendedgrid = 'blended_grid.nc'
+    # bgrid = netCDF.Dataset(locblendedgrid)
 
     # data locations, projected coords
     xy = np.zeros((3, 2))

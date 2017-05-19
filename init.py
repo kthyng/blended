@@ -29,7 +29,7 @@ def blended_datalocs():
     # ix, iy, _ = tracpy.tools.interpolate2d(ll[:,0], ll[:,1], grid, 'd_ll2ij')
 
     # i, j; across along
-    inds = np.zeros((3, 2))
+    inds = np.zeros((3, 2), dtype=int)
     inds[0, :] = [225, 446]  # NOAA g06010 at Galveston Entrance channel
     inds[1, :] = [161, 405]  # wind
     inds[2, :] = [140, 355]  # TABS buoy B

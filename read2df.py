@@ -39,15 +39,22 @@ def rot2d(x, y, ang):
     return xr, yr
 
 
-def getbayfiles():
+def getbayfiles(years, which):
     """Get list of urls for SUNTANS output available on thredds server.
     code from interpolate2grid.py
     """
 
-    years = [2009]  # np.arange(2007, 2012)
+    if which == 'coarse':
+        name = ''
+    elif which == 'fine':
+        name = 'FineTri_'
+    elif which == 'quad':
+        name = 'QuadWide_'
+
+    # years = [2009]  # np.arange(2007, 2012)
     Files = []  # urls for files on thredds server
     for yeart in years:
-        url = 'http://barataria.tamu.edu:8080/thredds/catalog/' + str(yeart) + '/catalog.html'
+        url = 'http://barataria.tamu.edu:8080/thredds/catalog/' + name + str(yeart) + '/catalog.html'
         soup = BeautifulSoup(requests.get(url).text)
 
         # Pull out file name from webpage
@@ -58,7 +65,7 @@ def getbayfiles():
             Filename = row.text.encode()  # File name from thredds catalog
             if 'Harmonics' in Filename:
                 continue  # not regular model output
-            Files.append('http://barataria.tamu.edu:8080/thredds/dodsC/' + str(yeart) + '/' + Filename)
+            Files.append('http://barataria.tamu.edu:8080/thredds/dodsC/' + name + str(yeart) + '/' + Filename)
     return(sorted(Files))
 
 
